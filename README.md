@@ -26,7 +26,7 @@ Aplicación web para gestionar tus metas personales, profesionales y de formaci�
 
 ## 📖 Uso
 
-### Crear una meta
+## Crear una meta
 1. Haz clic en "Agregar meta"
 2. Completa el formulario:
    - Título de la meta
@@ -35,18 +35,18 @@ Aplicación web para gestionar tus metas personales, profesionales y de formaci�
    - Trimestre y mes (si está planificada)
    - Checklist de tareas
 
-### Estados de metas
+## Estados de metas
 - **Activa**: Meta en progreso
 - **Replanificada**: Meta movida al siguiente mes
 - **Completada**: Meta lograda
 - **Sin planificar**: Meta sin fecha específica (aparece en todos los meses)
 
-### Filtros
+## Filtros
 - **Por área**: Filtra metas por categoría
 - **Por trimestre**: Filtra por Q1-Q4 o "Sin planificar"
 - **Por estado**: Filtra por estado de la meta
 
-### Objetivos anuales
+## Objetivos anuales
 - Define tus objetivos principales del año
 - Márcalos como completados cuando los logres
 - Edita o elimina objetivos según necesites
