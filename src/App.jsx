@@ -1,4 +1,16 @@
 import { useEffect, useState } from "react";
+import { 
+  subscribeToGoals, 
+  addGoal as addGoalToFirebase, 
+  updateGoal as updateGoalInFirebase, 
+  deleteGoal as deleteGoalFromFirebase,
+  subscribeToYearlyObjectives,
+  addYearlyObjective as addYearlyObjectiveToFirebase,
+  updateYearlyObjective as updateYearlyObjectiveInFirebase,
+  deleteYearlyObjective as deleteYearlyObjectiveFromFirebase
+} from "./firebase/goalsService";
+import { onAuthStateChange, logout } from "./firebase/authService";
+import Login from "./components/Login";
 
 // ===============================
 // APP COMPLETA – VERSION PERSONAL
@@ -128,6 +140,10 @@ export default function App() {
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
 
+  // Estado de autenticación
+  const [user, setUser] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
@@ -137,10 +153,8 @@ export default function App() {
       setSelectedMonth(currentMonth);
     }
   }, [selectedYear, currentYear, currentMonth]);
-  const [goals, setGoals] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [goals, setGoals] = useState([]);
+  const [isLoadingGoals, setIsLoadingGoals] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState(null);
@@ -157,27 +171,49 @@ export default function App() {
   const [showAllCompletedGoals, setShowAllCompletedGoals] = useState(false);
   
   // Objetivos anuales
-  const [yearlyObjectives, setYearlyObjectives] = useState(() => {
-    const saved = localStorage.getItem(`${YEARLY_OBJECTIVES_KEY}-${selectedYear}`);
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // Actualizar objetivos cuando cambia el año
-  useEffect(() => {
-    const saved = localStorage.getItem(`${YEARLY_OBJECTIVES_KEY}-${selectedYear}`);
-    setYearlyObjectives(saved ? JSON.parse(saved) : []);
-  }, [selectedYear]);
+  const [yearlyObjectives, setYearlyObjectives] = useState([]);
+  const [isLoadingObjectives, setIsLoadingObjectives] = useState(true);
   const [newObjective, setNewObjective] = useState("");
   const [editingObjectiveId, setEditingObjectiveId] = useState(null);
   const [editObjectiveText, setEditObjectiveText] = useState("");
 
+  // Escuchar cambios en el estado de autenticación
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(goals));
-  }, [goals]);
+    const unsubscribe = onAuthStateChange((firebaseUser) => {
+      setUser(firebaseUser);
+      setLoadingAuth(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
+  // Suscripción a metas en tiempo real desde Firebase (solo si hay usuario)
   useEffect(() => {
-    localStorage.setItem(`${YEARLY_OBJECTIVES_KEY}-${selectedYear}`, JSON.stringify(yearlyObjectives));
-  }, [yearlyObjectives, selectedYear]);
+    if (!user) {
+      setGoals([]);
+      setIsLoadingGoals(false);
+      return;
+    }
+    const unsubscribe = subscribeToGoals(user.uid, (firebaseGoals) => {
+      setGoals(firebaseGoals);
+      setIsLoadingGoals(false);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  // Suscripción a objetivos anuales cuando cambia el año (solo si hay usuario)
+  useEffect(() => {
+    if (!user) {
+      setYearlyObjectives([]);
+      setIsLoadingObjectives(false);
+      return;
+    }
+    setIsLoadingObjectives(true);
+    const unsubscribe = subscribeToYearlyObjectives(selectedYear, user.uid, (firebaseObjectives) => {
+      setYearlyObjectives(firebaseObjectives);
+      setIsLoadingObjectives(false);
+    });
+    return () => unsubscribe();
+  }, [selectedYear, user]);
 
   // Función helper para resetear el modal
   function resetModal() {
@@ -191,31 +227,25 @@ export default function App() {
     setIsModalOpen(false);
   }
 
-  function addGoal() {
+  async function addGoal() {
     if (!modalTitle.trim()) return;
+    if (!user) return;
     
-    if (editingGoalId) {
-      // Actualizar meta existente
-      setGoals(goals.map(g =>
-        g.id === editingGoalId
-          ? {
-              ...g,
-              title: modalTitle.trim(),
-              area: modalArea,
-              status: modalStatus,
-              quarter: modalQuarter,
-              startMonth: modalMonth,
-              activeMonths: [modalMonth],
-              checklist: modalChecklist.filter(item => item.text.trim() !== "")
-            }
-          : g
-      ));
-    } else {
-      // Crear nueva meta
-      setGoals([
-        ...goals,
-        {
-          id: Date.now(),
+    try {
+      if (editingGoalId) {
+        // Actualizar meta existente
+        await updateGoalInFirebase(editingGoalId, {
+          title: modalTitle.trim(),
+          area: modalArea,
+          status: modalStatus,
+          quarter: modalQuarter,
+          startMonth: modalMonth,
+          activeMonths: [modalMonth],
+          checklist: modalChecklist.filter(item => item.text.trim() !== "")
+        });
+      } else {
+        // Crear nueva meta
+        await addGoalToFirebase({
           title: modalTitle.trim(),
           area: modalArea,
           status: modalStatus,
@@ -223,54 +253,65 @@ export default function App() {
           activeMonths: [modalMonth],
           year: selectedYear,
           quarter: modalQuarter,
-          checklist: modalChecklist.filter(item => item.text.trim() !== "")
-        }
-      ]);
-    }
-    
-    // Reset modal form
-    resetModal();
-  }
-
-  function replanGoal(id) {
-    setGoals(goals.map(g => {
-      if (g.id === id) {
-        // Calcular el siguiente mes
-        const currentStartMonth = g.startMonth !== undefined ? g.startMonth : selectedMonth;
-        const currentGoalYear = g.year !== undefined ? g.year : selectedYear;
-        const nextMonth = (currentStartMonth + 1) % 12;
-        const nextYear = currentStartMonth === 11 ? currentGoalYear + 1 : currentGoalYear;
-        
-        // Calcular el trimestre del siguiente mes
-        const nextQuarter = getQuarter(nextMonth);
-        
-        // Incrementar el contador de postergaciones
-        const postponedCount = (g.postponedCount || 0) + 1;
-        
-        return {
-          ...g,
-          status: "replanned",
-          startMonth: nextMonth,
-          year: nextYear,
-          quarter: nextQuarter,
-          // Solo el nuevo mes está activo (donde aparecerá la meta)
-          activeMonths: [nextMonth],
-          // Contador de postergaciones para el contador visual
-          postponedCount: postponedCount
-        };
+          checklist: modalChecklist.filter(item => item.text.trim() !== ""),
+          postponedCount: 0
+        }, user.uid);
       }
-      return g;
-    }));
+      // Reset modal form
+      resetModal();
+    } catch (error) {
+      console.error('Error guardando meta:', error);
+      alert('Error al guardar la meta. Por favor, intenta de nuevo.');
+    }
   }
 
-  function completeGoal(id) {
-    setGoals(goals.map(g =>
-      g.id === id ? { ...g, status: "done" } : g
-    ));
+  async function replanGoal(id) {
+    try {
+      const goal = goals.find(g => g.id === id);
+      if (!goal) return;
+
+      // Calcular el siguiente mes
+      const currentStartMonth = goal.startMonth !== undefined ? goal.startMonth : selectedMonth;
+      const currentGoalYear = goal.year !== undefined ? goal.year : selectedYear;
+      const nextMonth = (currentStartMonth + 1) % 12;
+      const nextYear = currentStartMonth === 11 ? currentGoalYear + 1 : currentGoalYear;
+      
+      // Calcular el trimestre del siguiente mes
+      const nextQuarter = getQuarter(nextMonth);
+      
+      // Incrementar el contador de postergaciones
+      const postponedCount = (goal.postponedCount || 0) + 1;
+      
+      await updateGoalInFirebase(id, {
+        status: "replanned",
+        startMonth: nextMonth,
+        year: nextYear,
+        quarter: nextQuarter,
+        activeMonths: [nextMonth],
+        postponedCount: postponedCount
+      });
+    } catch (error) {
+      console.error('Error replanificando meta:', error);
+      alert('Error al replanificar la meta. Por favor, intenta de nuevo.');
+    }
   }
 
-  function deleteGoal(id) {
-    setGoals(goals.filter(g => g.id !== id));
+  async function completeGoal(id) {
+    try {
+      await updateGoalInFirebase(id, { status: "done" });
+    } catch (error) {
+      console.error('Error completando meta:', error);
+      alert('Error al completar la meta. Por favor, intenta de nuevo.');
+    }
+  }
+
+  async function deleteGoal(id) {
+    try {
+      await deleteGoalFromFirebase(id);
+    } catch (error) {
+      console.error('Error eliminando meta:', error);
+      alert('Error al eliminar la meta. Por favor, intenta de nuevo.');
+    }
   }
 
   function startEdit(goal) {
@@ -288,27 +329,41 @@ export default function App() {
   }
 
   // Funciones para objetivos anuales
-  function addYearlyObjective() {
+  async function addYearlyObjective() {
     if (!newObjective.trim()) return;
-    setYearlyObjectives([
-      ...yearlyObjectives,
-      {
-        id: Date.now(),
+    if (!user) return;
+    try {
+      await addYearlyObjectiveToFirebase({
         text: newObjective.trim(),
         completed: false
-      }
-    ]);
-    setNewObjective("");
+      }, selectedYear, user.uid);
+      setNewObjective("");
+    } catch (error) {
+      console.error('Error agregando objetivo anual:', error);
+      alert('Error al agregar el objetivo. Por favor, intenta de nuevo.');
+    }
   }
 
-  function deleteYearlyObjective(id) {
-    setYearlyObjectives(yearlyObjectives.filter(obj => obj.id !== id));
+  async function deleteYearlyObjective(id) {
+    try {
+      await deleteYearlyObjectiveFromFirebase(id);
+    } catch (error) {
+      console.error('Error eliminando objetivo anual:', error);
+      alert('Error al eliminar el objetivo. Por favor, intenta de nuevo.');
+    }
   }
 
-  function toggleYearlyObjective(id) {
-    setYearlyObjectives(yearlyObjectives.map(obj =>
-      obj.id === id ? { ...obj, completed: !obj.completed } : obj
-    ));
+  async function toggleYearlyObjective(id) {
+    try {
+      const objective = yearlyObjectives.find(obj => obj.id === id);
+      if (!objective) return;
+      await updateYearlyObjectiveInFirebase(id, {
+        completed: !objective.completed
+      });
+    } catch (error) {
+      console.error('Error actualizando objetivo anual:', error);
+      alert('Error al actualizar el objetivo. Por favor, intenta de nuevo.');
+    }
   }
 
   function startEditObjective(objective) {
@@ -316,15 +371,18 @@ export default function App() {
     setEditObjectiveText(objective.text);
   }
 
-  function saveEditObjective() {
+  async function saveEditObjective() {
     if (!editObjectiveText.trim()) return;
-    setYearlyObjectives(yearlyObjectives.map(obj =>
-      obj.id === editingObjectiveId
-        ? { ...obj, text: editObjectiveText.trim() }
-        : obj
-    ));
-    setEditingObjectiveId(null);
-    setEditObjectiveText("");
+    try {
+      await updateYearlyObjectiveInFirebase(editingObjectiveId, {
+        text: editObjectiveText.trim()
+      });
+      setEditingObjectiveId(null);
+      setEditObjectiveText("");
+    } catch (error) {
+      console.error('Error guardando objetivo anual:', error);
+      alert('Error al guardar el objetivo. Por favor, intenta de nuevo.');
+    }
   }
 
   function cancelEditObjective() {
@@ -353,6 +411,32 @@ export default function App() {
 
   const displayedCompletedGoals = showAllCompletedGoals ? allCompletedGoals : completedGoals;
 
+  // Mostrar pantalla de login si no hay usuario
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4"></div>
+          <p className="text-slate-400">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLogin={() => {}} />;
+  }
+
+  // Función para cerrar sesión
+  async function handleLogout() {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Error cerrando sesión:', error);
+      alert('Error al cerrar sesión');
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
@@ -371,9 +455,21 @@ export default function App() {
                 <div className="absolute inset-0 bg-white/5 rounded-full blur-xl"></div>
               </div>
               <div className="flex flex-col flex-1">
-                <h1 className="text-2xl font-semibold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-                  Metas
-                </h1>
+                <div className="flex items-center justify-between">
+                  <h1 className="text-2xl font-semibold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                    Metas
+                  </h1>
+                  <button
+                    onClick={handleLogout}
+                    className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg hover:bg-slate-800/50 transition flex items-center gap-1.5"
+                    title="Cerrar sesión"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Salir
+                  </button>
+                </div>
                 <div className="flex items-center gap-2 mt-0.5">
                   <select
                     value={selectedYear}
@@ -402,6 +498,11 @@ export default function App() {
                     </button>
                   )}
                 </div>
+                {user?.displayName && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {user.displayName}
+                  </p>
+                )}
               </div>
             </div>
 
