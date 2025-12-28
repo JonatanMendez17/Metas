@@ -326,29 +326,29 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
-        {/* Header con logo */}
-        <div className="flex items-center gap-4 mb-8 pb-6 border-b border-slate-800/50">
-          <div className="relative">
-            <img 
-              src="/logo.png" 
-              alt="Metas" 
-              className="h-12 w-12 object-contain drop-shadow-lg"
-            />
-            <div className="absolute inset-0 bg-white/5 rounded-full blur-xl"></div>
-          </div>
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-semibold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-              Metas
-            </h1>
-            <div className="text-xs font-medium text-slate-400 mt-0.5">AÑO {year}</div>
-          </div>
-        </div>
-
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         {/* Layout con dos columnas */}
         <div className="flex flex-col lg:flex-row gap-8 items-start">
           {/* Columna izquierda - Calendario */}
           <div className="flex-shrink-0 w-full lg:w-64">
+            {/* Header con logo */}
+            <div className="flex items-center gap-4 mb-6 pb-4 border-b border-slate-800/50">
+              <div className="relative">
+                <img 
+                  src="/logo.png" 
+                  alt="Metas" 
+                  className="h-16 w-16 object-contain drop-shadow-lg"
+                />
+                <div className="absolute inset-0 bg-white/5 rounded-full blur-xl"></div>
+              </div>
+              <div className="flex flex-col">
+                <h1 className="text-2xl font-semibold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                  Metas
+                </h1>
+                <div className="text-xs font-medium text-slate-400 mt-0.5">AÑO {year}</div>
+              </div>
+            </div>
+
             {/* Objetivos principales del año */}
             <section className="mb-6 pb-6 border-b border-slate-800/50">
               <div className="flex items-center justify-between mb-4">
@@ -487,7 +487,7 @@ export default function App() {
 
         {/* Selector de meses */}
         <div className="mb-8">
-          <div className="grid grid-cols-12 gap-2">
+          <div className="grid grid-cols-6 md:grid-cols-12 gap-2 overflow-x-auto md:overflow-visible">
             {Array.from({ length: 12 }).map((_, i) => {
               const quarter = getQuarter(i);
               const quarterColor = QUARTER_COLORS[quarter];
@@ -501,11 +501,11 @@ export default function App() {
               return (
                 <div key={i} className="relative">
                   {isFirstInQuarter && i > 0 && (
-                    <div className="absolute left-0 top-1/2 -translate-x-1/2 w-px h-6 bg-neutral-700 -translate-y-1/2 z-0" />
+                    <div className="hidden md:block absolute left-0 top-1/2 -translate-x-1/2 w-px h-6 bg-slate-700 -translate-y-1/2 z-0" />
                   )}
                   <button
                     onClick={() => setSelectedMonth(i)}
-                    className={`w-full px-2 py-2 rounded-lg text-xs font-medium transition-all relative overflow-hidden ${
+                    className={`w-full px-2 md:px-2 py-2 rounded-lg text-xs font-medium transition-all relative overflow-hidden ${
                       isSelected
                         ? "bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 scale-105"
                         : `bg-slate-900/50 text-slate-400 border ${quarterColor.border} hover:bg-slate-800/50 hover:text-slate-300 hover:scale-102`
@@ -560,9 +560,9 @@ export default function App() {
         </div>
 
         {/* Filtros */}
-        <div className="mb-8 p-4 rounded-xl bg-slate-900/30 border border-slate-800/50 backdrop-blur-sm">
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
+        <div className="mb-8 p-3 md:p-4 rounded-xl bg-slate-900/30 border border-slate-800/50 backdrop-blur-sm">
+          <div className="flex flex-col md:flex-row md:flex-wrap gap-3 md:gap-4 md:items-center">
+            <div className="flex items-center gap-2 mb-1 md:mb-0">
               <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
@@ -570,11 +570,11 @@ export default function App() {
             </div>
             
             {/* Filtro por Área */}
-            <div className="flex items-center gap-2">
+            <div className="flex-1 md:flex-initial">
               <select
                 value={filterArea}
                 onChange={e => setFilterArea(e.target.value)}
-                className="rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition appearance-none cursor-pointer hover:bg-slate-800"
+                className="w-full md:w-auto rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition appearance-none cursor-pointer hover:bg-slate-800"
               >
                 <option value="all">Todas las áreas</option>
                 {Object.entries(AREAS).map(([k, v]) => (
@@ -584,11 +584,11 @@ export default function App() {
             </div>
 
             {/* Filtro por Trimestre */}
-            <div className="flex items-center gap-2">
+            <div className="flex-1 md:flex-initial">
               <select
                 value={filterQuarter}
                 onChange={e => setFilterQuarter(e.target.value)}
-                className="rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition appearance-none cursor-pointer hover:bg-slate-800"
+                className="w-full md:w-auto rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition appearance-none cursor-pointer hover:bg-slate-800"
               >
                 <option value="all">Todos los trimestres</option>
                 <option value="1" className="bg-slate-800">Q1</option>
@@ -599,11 +599,11 @@ export default function App() {
             </div>
 
             {/* Filtro por Estado */}
-            <div className="flex items-center gap-2">
+            <div className="flex-1 md:flex-initial">
               <select
                 value={filterStatus}
                 onChange={e => setFilterStatus(e.target.value)}
-                className="rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition appearance-none cursor-pointer hover:bg-slate-800"
+                className="w-full md:w-auto rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition appearance-none cursor-pointer hover:bg-slate-800"
               >
                 <option value="all">Todos los estados</option>
                 <option value="active" className="bg-slate-800">Activa</option>
@@ -613,7 +613,7 @@ export default function App() {
             </div>
 
             {/* Contador de resultados */}
-            <div className="ml-auto flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
+            <div className="w-full md:w-auto md:ml-auto flex items-center justify-center md:justify-start gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
               <span className="text-sm font-semibold text-slate-200">{visibleGoals.length}</span>
               <span className="text-xs text-slate-400">{visibleGoals.length === 1 ? "meta" : "metas"}</span>
             </div>
