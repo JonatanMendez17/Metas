@@ -37,13 +37,15 @@ const AREAS = {
   profesional: "Profesional",
   formacion: "Formación",
   creativa: "Creativa",
-  freelancer: "Freelancer"
+  freelancer: "Freelancer",
+  libros: "Libros"
 };
 
 const STATUS_LABELS = {
   active: "Activa",
   replanned: "Replanificada",
-  done: "Completada"
+  done: "Completada",
+  unplanned: "Sin planificar"
 };
 
 const STATUS_ICONS = {
@@ -60,6 +62,11 @@ const STATUS_ICONS = {
   done: (
     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+  ),
+  unplanned: (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
   )
 };
@@ -232,30 +239,37 @@ export default function App() {
     if (!user) return;
     
     try {
+      const isUnplannedStatus = modalStatus === "unplanned";
+      
+      const goalData = {
+        title: modalTitle.trim(),
+        area: modalArea,
+        status: modalStatus,
+        checklist: modalChecklist.filter(item => item.text.trim() !== ""),
+        isUnplanned: isUnplannedStatus
+      };
+
+      if (isUnplannedStatus) {
+        // Meta sin planificar: no tiene quarter, month, year ni activeMonths
+        goalData.quarter = null;
+        goalData.startMonth = null;
+        goalData.year = null;
+        goalData.activeMonths = [];
+      } else {
+        // Meta planificada: incluye todos los campos
+        goalData.quarter = modalQuarter;
+        goalData.startMonth = modalMonth;
+        goalData.activeMonths = [modalMonth];
+        goalData.year = selectedYear;
+      }
+
       if (editingGoalId) {
         // Actualizar meta existente
-        await updateGoalInFirebase(editingGoalId, {
-          title: modalTitle.trim(),
-          area: modalArea,
-          status: modalStatus,
-          quarter: modalQuarter,
-          startMonth: modalMonth,
-          activeMonths: [modalMonth],
-          checklist: modalChecklist.filter(item => item.text.trim() !== "")
-        });
+        await updateGoalInFirebase(editingGoalId, goalData);
       } else {
         // Crear nueva meta
-        await addGoalToFirebase({
-          title: modalTitle.trim(),
-          area: modalArea,
-          status: modalStatus,
-          startMonth: modalMonth,
-          activeMonths: [modalMonth],
-          year: selectedYear,
-          quarter: modalQuarter,
-          checklist: modalChecklist.filter(item => item.text.trim() !== ""),
-          postponedCount: 0
-        }, user.uid);
+        goalData.postponedCount = 0;
+        await addGoalToFirebase(goalData, user.uid);
       }
       // Reset modal form
       resetModal();
@@ -318,9 +332,10 @@ export default function App() {
     setEditingGoalId(goal.id);
     setModalTitle(goal.title || "");
     setModalArea(goal.area || "personal");
-    setModalStatus(goal.status || "active");
-    setModalQuarter(goal.quarter || 1);
-    setModalMonth(goal.startMonth !== undefined ? goal.startMonth : 0);
+    // Si la meta está sin planificar, usar estado "unplanned", sino usar el estado guardado o "active"
+    setModalStatus(goal.isUnplanned ? "unplanned" : (goal.status || "active"));
+    setModalQuarter(goal.quarter !== null && goal.quarter !== undefined ? goal.quarter : 1);
+    setModalMonth(goal.startMonth !== null && goal.startMonth !== undefined ? goal.startMonth : 0);
     setModalChecklist(goal.checklist && goal.checklist.length > 0 
       ? goal.checklist.map(item => ({ ...item, id: item.id || Date.now() }))
       : [{ id: Date.now(), text: "", completed: false }]
@@ -391,9 +406,20 @@ export default function App() {
   }
 
   const visibleGoals = goals
-    .filter(g => g.year === selectedYear && g.activeMonths.includes(selectedMonth))
+    .filter(g => {
+      // Las metas sin planificar (estado "unplanned") aparecen siempre
+      if (g.status === "unplanned" || g.isUnplanned) return true;
+      // Las metas planificadas solo aparecen si coinciden con el año y mes seleccionado
+      return g.year === selectedYear && g.activeMonths && g.activeMonths.includes(selectedMonth);
+    })
     .filter(g => filterArea === "all" || g.area === filterArea)
-    .filter(g => filterQuarter === "all" || g.quarter === Number(filterQuarter))
+    .filter(g => {
+      if (filterQuarter === "all") return true;
+      if (filterQuarter === "unplanned") return g.status === "unplanned" || g.isUnplanned === true;
+      // Si es una meta sin planificar y el filtro no es "unplanned", no se muestra
+      if (g.status === "unplanned" || g.isUnplanned) return false;
+      return g.quarter === Number(filterQuarter);
+    })
     .filter(g => filterStatus === "all" || g.status === filterStatus)
     .sort((a, b) => a.title.localeCompare(b.title, "es", { sensitivity: "base" }));
 
@@ -646,7 +672,14 @@ export default function App() {
                                 <span className="text-[10px] text-slate-500 font-medium">
                                   {AREAS[goal.area]}
                                 </span>
-                                {goal.quarter && (
+                                {(goal.status === "unplanned" || goal.isUnplanned) ? (
+                                  <>
+                                    <span className="text-[10px] text-slate-600">•</span>
+                                    <span className="text-[10px] text-slate-500 font-medium">
+                                      Sin planificar
+                                    </span>
+                                  </>
+                                ) : goal.quarter && (
                                   <>
                                     <span className="text-[10px] text-slate-600">•</span>
                                     <span className="text-[10px] text-slate-500 font-medium">
@@ -784,6 +817,7 @@ export default function App() {
                 className="w-full md:w-auto rounded-lg bg-slate-800/50 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition appearance-none cursor-pointer hover:bg-slate-800"
               >
                 <option value="all">Todos los trimestres</option>
+                <option value="unplanned" className="bg-slate-800">Sin planificar</option>
                 <option value="1" className="bg-slate-800">Q1</option>
                 <option value="2" className="bg-slate-800">Q2</option>
                 <option value="3" className="bg-slate-800">Q3</option>
@@ -802,6 +836,7 @@ export default function App() {
                 <option value="active" className="bg-slate-800">Activa</option>
                 <option value="replanned" className="bg-slate-800">Replanificada</option>
                 <option value="done" className="bg-slate-800">Completada</option>
+                <option value="unplanned" className="bg-slate-800">Sin planificar</option>
               </select>
             </div>
 
@@ -907,15 +942,16 @@ export default function App() {
                       <option value="active" className="bg-slate-800">Activa</option>
                       <option value="replanned" className="bg-slate-800">Replanificada</option>
                       <option value="done" className="bg-slate-800">Completada</option>
+                      <option value="unplanned" className="bg-slate-800">Sin planificar</option>
                     </select>
                   </div>
                 </div>
 
-                {/* Trimestre y Mes - Grid */}
+                {/* Trimestre y Mes - Grid (deshabilitados si está sin planificar) */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-300 mb-2">
-                      Trimestre
+                      Trimestre {modalStatus === "unplanned" && <span className="text-slate-500 text-xs">(no aplica)</span>}
                     </label>
                     <select
                       value={modalQuarter}
@@ -928,7 +964,10 @@ export default function App() {
                           setModalMonth(monthsInQuarter[0]);
                         }
                       }}
-                      className="w-full rounded-lg bg-slate-800/50 border border-slate-700 px-4 py-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition appearance-none cursor-pointer"
+                      disabled={modalStatus === "unplanned"}
+                      className={`w-full rounded-lg bg-slate-800/50 border border-slate-700 px-4 py-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition appearance-none ${
+                        modalStatus === "unplanned" ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                      }`}
                     >
                       <option value={1} className="bg-slate-800">Q1</option>
                       <option value={2} className="bg-slate-800">Q2</option>
@@ -938,12 +977,15 @@ export default function App() {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-300 mb-2">
-                      Mes
+                      Mes {modalStatus === "unplanned" && <span className="text-slate-500 text-xs">(no aplica)</span>}
                     </label>
                     <select
                       value={modalMonth}
                       onChange={e => setModalMonth(Number(e.target.value))}
-                      className="w-full rounded-lg bg-slate-800/50 border border-slate-700 px-4 py-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition appearance-none cursor-pointer"
+                      disabled={modalStatus === "unplanned"}
+                      className={`w-full rounded-lg bg-slate-800/50 border border-slate-700 px-4 py-3 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition appearance-none ${
+                        modalStatus === "unplanned" ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                      }`}
                     >
                       {getMonthsInQuarter(modalQuarter).map((i) => (
                         <option 
@@ -1051,7 +1093,8 @@ function GoalCard({
   const statusColors = {
     active: "from-blue-600 to-indigo-600",
     replanned: "from-amber-600 to-orange-600",
-    done: "from-emerald-600 to-teal-600"
+    done: "from-emerald-600 to-teal-600",
+    unplanned: "from-slate-600 to-slate-700"
   };
 
   return (
