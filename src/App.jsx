@@ -24,8 +24,32 @@ const AREAS = {
   personal: "Personal",
   profesional: "Profesional",
   formacion: "Formación",
-  salud: "Salud",
-  creativa: "Creativa"
+  creativa: "Creativa",
+  freelancer: "Freelancer"
+};
+
+const STATUS_LABELS = {
+  active: "Activa",
+  replanned: "Replanificada",
+  done: "Completada"
+};
+
+const STATUS_ICONS = {
+  active: (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  replanned: (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+  ),
+  done: (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+  )
 };
 
 const STORAGE_KEY = "metas-app-goals";
@@ -282,8 +306,15 @@ export default function App() {
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <main className="max-w-7xl mx-auto px-6 py-10">
-        {/* Año */}
-        <div className="text-sm opacity-60 mb-6">AÑO {year}</div>
+        {/* Header con logo */}
+        <div className="flex items-center gap-4 mb-6">
+          <img 
+            src="/logo.png" 
+            alt="Metas" 
+            className="h-10 w-10 object-contain"
+          />
+          <div className="text-sm opacity-60">AÑO {year}</div>
+        </div>
 
         {/* Layout con dos columnas */}
         <div className="flex flex-col lg:flex-row gap-8 items-start">
@@ -823,10 +854,13 @@ function GoalCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 text-[10px] opacity-70 mb-2">
+      <div className="flex flex-wrap gap-1.5 text-[10px] opacity-70 mb-2 items-center">
         <span>{AREAS[goal.area]}</span>
         <span>•</span>
-        <span>{goal.status}</span>
+        <span className="flex items-center gap-1">
+          {STATUS_ICONS[goal.status]}
+          {STATUS_LABELS[goal.status]}
+        </span>
         {goal.quarter && (
           <>
             <span>•</span>
@@ -835,22 +869,15 @@ function GoalCard({
         )}
       </div>
 
-      {/* Checklist */}
+      {/* Checklist - Contador */}
       {goal.checklist && goal.checklist.length > 0 && (
-        <div className="mb-2 space-y-1">
-          {goal.checklist.map((item, index) => (
-            <div key={index} className="flex items-center gap-1.5 text-xs">
-              <input
-                type="checkbox"
-                checked={item.completed}
-                readOnly
-                className="w-3 h-3 rounded border-2 border-neutral-600"
-              />
-              <span className={item.completed ? "line-through opacity-50" : ""}>
-                {item.text}
-              </span>
-            </div>
-          ))}
+        <div className="mb-2 flex items-center gap-1.5">
+          <svg className="w-3.5 h-3.5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+          <span className="text-xs text-neutral-300">
+            {goal.checklist.filter(item => item.completed).length}/{goal.checklist.length}
+          </span>
         </div>
       )}
 
