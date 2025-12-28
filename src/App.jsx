@@ -126,16 +126,22 @@ function getQuarterProgress(quarter, currentDate) {
 export default function App() {
   const today = new Date();
   const currentMonth = today.getMonth();
-  const year = today.getFullYear();
+  const currentYear = today.getFullYear();
 
+  const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+
+  // Ajustar mes seleccionado cuando cambia el año
+  useEffect(() => {
+    if (selectedYear === currentYear && selectedMonth > currentMonth) {
+      setSelectedMonth(currentMonth);
+    }
+  }, [selectedYear, currentYear, currentMonth]);
   const [goals, setGoals] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [title, setTitle] = useState("");
-  const [area, setArea] = useState("personal");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGoalId, setEditingGoalId] = useState(null);
   const [modalTitle, setModalTitle] = useState("");
@@ -148,12 +154,19 @@ export default function App() {
   const [filterArea, setFilterArea] = useState("all");
   const [filterQuarter, setFilterQuarter] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [showAllCompletedGoals, setShowAllCompletedGoals] = useState(false);
   
   // Objetivos anuales
   const [yearlyObjectives, setYearlyObjectives] = useState(() => {
-    const saved = localStorage.getItem(`${YEARLY_OBJECTIVES_KEY}-${year}`);
+    const saved = localStorage.getItem(`${YEARLY_OBJECTIVES_KEY}-${selectedYear}`);
     return saved ? JSON.parse(saved) : [];
   });
+
+  // Actualizar objetivos cuando cambia el año
+  useEffect(() => {
+    const saved = localStorage.getItem(`${YEARLY_OBJECTIVES_KEY}-${selectedYear}`);
+    setYearlyObjectives(saved ? JSON.parse(saved) : []);
+  }, [selectedYear]);
   const [newObjective, setNewObjective] = useState("");
   const [editingObjectiveId, setEditingObjectiveId] = useState(null);
   const [editObjectiveText, setEditObjectiveText] = useState("");
@@ -163,8 +176,20 @@ export default function App() {
   }, [goals]);
 
   useEffect(() => {
-    localStorage.setItem(`${YEARLY_OBJECTIVES_KEY}-${year}`, JSON.stringify(yearlyObjectives));
-  }, [yearlyObjectives, year]);
+    localStorage.setItem(`${YEARLY_OBJECTIVES_KEY}-${selectedYear}`, JSON.stringify(yearlyObjectives));
+  }, [yearlyObjectives, selectedYear]);
+
+  // Función helper para resetear el modal
+  function resetModal() {
+    setModalTitle("");
+    setModalStatus("active");
+    setModalQuarter(getQuarter(selectedMonth));
+    setModalMonth(selectedMonth);
+    setModalArea("personal");
+    setModalChecklist([{ id: Date.now(), text: "", completed: false }]);
+    setEditingGoalId(null);
+    setIsModalOpen(false);
+  }
 
   function addGoal() {
     if (!modalTitle.trim()) return;
@@ -196,7 +221,7 @@ export default function App() {
           status: modalStatus,
           startMonth: modalMonth,
           activeMonths: [modalMonth],
-          year,
+          year: selectedYear,
           quarter: modalQuarter,
           checklist: modalChecklist.filter(item => item.text.trim() !== "")
         }
@@ -204,14 +229,7 @@ export default function App() {
     }
     
     // Reset modal form
-    setModalTitle("");
-    setModalStatus("active");
-    setModalQuarter(1);
-    setModalMonth(0);
-    setModalArea("personal");
-    setModalChecklist([{ id: Date.now(), text: "", completed: false }]);
-    setEditingGoalId(null);
-    setIsModalOpen(false);
+    resetModal();
   }
 
   function replanGoal(id) {
@@ -219,8 +237,9 @@ export default function App() {
       if (g.id === id) {
         // Calcular el siguiente mes
         const currentStartMonth = g.startMonth !== undefined ? g.startMonth : selectedMonth;
+        const currentGoalYear = g.year !== undefined ? g.year : selectedYear;
         const nextMonth = (currentStartMonth + 1) % 12;
-        const nextYear = currentStartMonth === 11 ? year + 1 : year;
+        const nextYear = currentStartMonth === 11 ? currentGoalYear + 1 : currentGoalYear;
         
         // Calcular el trimestre del siguiente mes
         const nextQuarter = getQuarter(nextMonth);
@@ -314,15 +333,25 @@ export default function App() {
   }
 
   const visibleGoals = goals
-    .filter(g => g.year === year && g.activeMonths.includes(selectedMonth))
+    .filter(g => g.year === selectedYear && g.activeMonths.includes(selectedMonth))
     .filter(g => filterArea === "all" || g.area === filterArea)
     .filter(g => filterQuarter === "all" || g.quarter === Number(filterQuarter))
     .filter(g => filterStatus === "all" || g.status === filterStatus)
     .sort((a, b) => a.title.localeCompare(b.title, "es", { sensitivity: "base" }));
 
   const completedGoals = goals
-    .filter(g => g.year === year && g.status === "done")
+    .filter(g => g.year === selectedYear && g.status === "done")
     .sort((a, b) => a.title.localeCompare(b.title, "es", { sensitivity: "base" }));
+
+  const allCompletedGoals = goals
+    .filter(g => g.status === "done")
+    .sort((a, b) => {
+      // Ordenar por año descendente, luego por título
+      if (b.year !== a.year) return b.year - a.year;
+      return a.title.localeCompare(b.title, "es", { sensitivity: "base" });
+    });
+
+  const displayedCompletedGoals = showAllCompletedGoals ? allCompletedGoals : completedGoals;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
@@ -341,11 +370,38 @@ export default function App() {
                 />
                 <div className="absolute inset-0 bg-white/5 rounded-full blur-xl"></div>
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col flex-1">
                 <h1 className="text-2xl font-semibold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
                   Metas
                 </h1>
-                <div className="text-xs font-medium text-slate-400 mt-0.5">AÑO {year}</div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <select
+                    value={selectedYear}
+                    onChange={e => {
+                      setSelectedYear(Number(e.target.value));
+                      setSelectedMonth(0); // Resetear al primer mes al cambiar de año
+                    }}
+                    className="text-xs font-semibold text-slate-300 bg-slate-900/50 border border-slate-700/50 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 cursor-pointer hover:bg-slate-800/50 transition"
+                  >
+                    {Array.from({ length: 11 }, (_, i) => currentYear - 5 + i).map(y => (
+                      <option key={y} value={y} className="bg-slate-900">
+                        {y === currentYear ? `AÑO ${y} (Actual)` : `AÑO ${y}`}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedYear !== currentYear && (
+                    <button
+                      onClick={() => {
+                        setSelectedYear(currentYear);
+                        setSelectedMonth(currentMonth);
+                      }}
+                      className="text-[10px] px-2 py-0.5 rounded bg-slate-800/50 hover:bg-slate-700/50 text-slate-400 hover:text-slate-200 transition"
+                      title="Volver al año actual"
+                    >
+                      Hoy
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -407,13 +463,7 @@ export default function App() {
             {/* Botón de agregar meta */}
             <button
               onClick={() => {
-                setEditingGoalId(null);
-                setModalTitle("");
-                setModalStatus("active");
-                setModalQuarter(1);
-                setModalMonth(0);
-                setModalArea("personal");
-                setModalChecklist([{ id: Date.now(), text: "", completed: false }]);
+                resetModal();
                 setIsModalOpen(true);
               }}
               className="w-full mb-6 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-5 py-3.5 font-semibold hover:from-emerald-500 hover:to-teal-500 transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
@@ -424,50 +474,92 @@ export default function App() {
               Agregar Meta
             </button>
             <Calendar 
-              year={year}
+              year={selectedYear}
               month={selectedMonth}
               currentDate={today}
             />
 
             {/* Metas logradas */}
-            {completedGoals.length > 0 && (
+            {(completedGoals.length > 0 || showAllCompletedGoals) && (
               <div className="mt-6">
-                <h3 className="text-xs font-semibold mb-3 text-slate-400 uppercase tracking-wider">
-                  Metas logradas
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      Metas logradas
+                    </h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800/50 text-slate-400 font-medium">
+                      {showAllCompletedGoals ? allCompletedGoals.length : completedGoals.length}
+                    </span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <span className="text-[10px] text-slate-500 group-hover:text-slate-300 transition">
+                      Todos los años
+                    </span>
+                    <div className="relative inline-flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={showAllCompletedGoals}
+                        onChange={e => setShowAllCompletedGoals(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </div>
+                  </label>
+                </div>
                 <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                  {completedGoals.map(goal => (
-                    <div
-                      key={goal.id}
-                      className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-900/30 border border-slate-800/50 hover:bg-slate-900/50 hover:border-slate-700/50 transition backdrop-blur-sm"
-                    >
-                      <div className="flex-shrink-0 mt-0.5">
-                        <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                          <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                          </svg>
+                  {displayedCompletedGoals.length === 0 ? (
+                    <p className="text-xs text-slate-500 italic text-center py-2">
+                      No hay metas logradas
+                    </p>
+                  ) : (
+                    displayedCompletedGoals.map(goal => (
+                      <div
+                        key={goal.id}
+                        className={`flex items-start gap-2.5 rounded-lg bg-slate-900/30 border border-slate-800/50 hover:bg-slate-900/50 hover:border-slate-700/50 transition backdrop-blur-sm ${
+                          showAllCompletedGoals ? "p-2" : "p-3"
+                        }`}
+                      >
+                        <div className="flex-shrink-0 mt-0.5">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                            <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-slate-300 line-through opacity-60 font-medium">
-                          {goal.title}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          <span className="text-[10px] text-slate-500 font-medium">
-                            {AREAS[goal.area]}
-                          </span>
-                          {goal.quarter && (
-                            <>
-                              <span className="text-[10px] text-slate-600">•</span>
-                              <span className="text-[10px] text-slate-500 font-medium">
-                                Q{goal.quarter}
+                        <div className="flex-1 min-w-0">
+                          {showAllCompletedGoals ? (
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs text-slate-300 line-through opacity-60 font-medium">
+                                {goal.title}
+                              </p>
+                              <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap">
+                                {goal.year}
                               </span>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-xs text-slate-300 line-through opacity-60 font-medium">
+                                {goal.title}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-1.5">
+                                <span className="text-[10px] text-slate-500 font-medium">
+                                  {AREAS[goal.area]}
+                                </span>
+                                {goal.quarter && (
+                                  <>
+                                    <span className="text-[10px] text-slate-600">•</span>
+                                    <span className="text-[10px] text-slate-500 font-medium">
+                                      Q{goal.quarter}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
                             </>
                           )}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -478,7 +570,7 @@ export default function App() {
         {/* Mes + mensaje */}
         <div className="mb-8">
           <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-            {new Date(year, selectedMonth).toLocaleString("es-ES", { month: "long" }).toUpperCase()}
+            {new Date(selectedYear, selectedMonth).toLocaleString("es-ES", { month: "long" }).toUpperCase()}
           </h1>
           <p className="text-slate-400 text-lg font-light italic">
             {MONTH_MESSAGES[selectedMonth]}
@@ -493,7 +585,7 @@ export default function App() {
               const quarterColor = QUARTER_COLORS[quarter];
               const isSelected = i === selectedMonth;
               const isFirstInQuarter = i % 3 === 0;
-              const monthProgress = getMonthProgress(year, i, today);
+              const monthProgress = getMonthProgress(selectedYear, i, today);
               const isPast = monthProgress === 1;
               const isCurrent = monthProgress > 0 && monthProgress < 1;
               const isFuture = monthProgress === 0;
@@ -544,7 +636,7 @@ export default function App() {
                 return (
                   <div className="flex items-center gap-2">
                     <span>Progreso:</span>
-                    <div className="flex-1 w-24 h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                    <div className="flex-1 w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
                       <div 
                         className={`h-full ${QUARTER_COLORS[currentQuarter].bg} border ${QUARTER_COLORS[currentQuarter].border}`}
                         style={{ width: `${quarterProgress * 100}%` }}
@@ -644,16 +736,7 @@ export default function App() {
       {isModalOpen && (
         <div 
           className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => {
-            setIsModalOpen(false);
-            setEditingGoalId(null);
-            setModalTitle("");
-            setModalStatus("active");
-            setModalQuarter(1);
-            setModalMonth(0);
-            setModalArea("personal");
-            setModalChecklist([{ id: Date.now(), text: "", completed: false }]);
-          }}
+          onClick={resetModal}
         >
           <div 
             className="bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col border border-slate-800/50"
@@ -666,16 +749,7 @@ export default function App() {
                   {editingGoalId ? "Editar Meta" : "Nueva Meta"}
                 </h2>
                 <button
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    setEditingGoalId(null);
-                    setModalTitle("");
-                    setModalStatus("active");
-                    setModalQuarter(1);
-                    setModalMonth(0);
-                    setModalArea("personal");
-                    setModalChecklist([{ id: Date.now(), text: "", completed: false }]);
-                  }}
+                  onClick={resetModal}
                   className="text-slate-400 hover:text-slate-200 transition p-2 hover:bg-slate-800/50 rounded-lg"
                   aria-label="Cerrar"
                 >
@@ -776,7 +850,7 @@ export default function App() {
                           value={i} 
                           className="bg-slate-800"
                         >
-                          {new Date(year, i).toLocaleString("es-ES", { month: "long" })}
+                          {new Date(selectedYear, i).toLocaleString("es-ES", { month: "long" })}
                         </option>
                       ))}
                     </select>
@@ -846,16 +920,7 @@ export default function App() {
             <div className="px-6 py-4 border-t border-slate-800/50 bg-slate-900/30">
               <div className="flex gap-3">
                 <button
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    setEditingGoalId(null);
-                    setModalTitle("");
-                    setModalStatus("active");
-                    setModalQuarter(1);
-                    setModalMonth(0);
-                    setModalArea("personal");
-                    setModalChecklist([{ id: Date.now(), text: "", completed: false }]);
-                  }}
+                  onClick={resetModal}
                   className="flex-1 px-4 py-2.5 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-200 font-semibold transition border border-slate-700/50"
                 >
                   Cancelar
