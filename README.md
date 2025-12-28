@@ -1,16 +1,60 @@
-# React + Vite
+# Metas - Gestión de Metas Personales
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación web para gestionar tus metas personales, profesionales y de formación de manera organizada por trimestres y meses.
 
-Currently, two official plugins are available:
+## 🚀 Características
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- ✅ **Gestión de metas**: Crea, edita y elimina metas con diferentes áreas (Personal, Profesional, Formación, Creativa, Freelancer, Libros)
+- 📅 **Planificación temporal**: Organiza tus metas por trimestre (Q1-Q4) y mes
+- 📊 **Seguimiento de progreso**: Visualiza el progreso de meses y trimestres
+- ✅ **Checklist**: Agrega tareas a cada meta y lleva un seguimiento
+- 🎯 **Objetivos anuales**: Define y gestiona tus objetivos principales del año
+- 🔄 **Replanificación**: Mueve metas al siguiente mes con contador de postergaciones
+- 🔍 **Filtros**: Filtra por área, trimestre y estado
+- 📱 **Responsive**: Diseño adaptable para móviles y escritorio
+- 🔐 **Autenticación**: Sistema de login con Firebase para proteger tus datos
+- ☁️ **Sincronización en tiempo real**: Tus datos se sincronizan automáticamente
 
-## React Compiler
+## 🛠️ Tecnologías
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **React** - Framework de UI
+- **Firebase** - Backend (Firestore + Authentication)
+- **Tailwind CSS** - Estilos
+- **Vite** - Build tool
+```
 
-## Expanding the ESLint configuration
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 📖 Uso
+
+### Crear una meta
+1. Haz clic en "Agregar meta"
+2. Completa el formulario:
+   - Título de la meta
+   - Área (Personal, Profesional, etc.)
+   - Estado (Activa, Replanificada, Completada, Sin planificar)
+   - Trimestre y mes (si está planificada)
+   - Checklist de tareas
+
+### Estados de metas
+- **Activa**: Meta en progreso
+- **Replanificada**: Meta movida al siguiente mes
+- **Completada**: Meta lograda
+- **Sin planificar**: Meta sin fecha específica (aparece en todos los meses)
+
+### Filtros
+- **Por área**: Filtra metas por categoría
+- **Por trimestre**: Filtra por Q1-Q4 o "Sin planificar"
+- **Por estado**: Filtra por estado de la meta
+
+### Objetivos anuales
+- Define tus objetivos principales del año
+- Márcalos como completados cuando los logres
+- Edita o elimina objetivos según necesites
+
+## 📁 Estructura del proyecto
+
+
+
+---
+
+Desarrollado para gestionar metas de manera efectiva.
