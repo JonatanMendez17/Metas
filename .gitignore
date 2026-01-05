@@ -18,7 +18,7 @@ dist-ssr
 .env.*.local
 
 # Firebase config (contiene credenciales)
-# src/firebase/config.js  # Comentado temporalmente para permitir build en GitHub Actions
+# config.js ahora usa variables de entorno, no necesita estar en .gitignore
 
 # Editor directories and files
 .vscode/*

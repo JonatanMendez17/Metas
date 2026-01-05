@@ -71,9 +71,6 @@ const STATUS_ICONS = {
   )
 };
 
-const STORAGE_KEY = "metas-app-goals";
-const YEARLY_OBJECTIVES_KEY = "metas-app-yearly-objectives";
-
 // Colores por trimestre
 const QUARTER_COLORS = {
   1: { border: "border-blue-500/30", bg: "bg-blue-500/10", label: "Q1" },

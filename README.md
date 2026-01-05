@@ -21,8 +21,6 @@ Aplicación web para gestionar tus metas personales, profesionales y de formaci�
 - **Firebase** - Backend (Firestore + Authentication)
 - **Tailwind CSS** - Estilos
 - **Vite** - Build tool
-```
-
 
 ## 📖 Uso
 
@@ -51,9 +49,15 @@ Aplicación web para gestionar tus metas personales, profesionales y de formaci�
 - Márcalos como completados cuando los logres
 - Edita o elimina objetivos según necesites
 
-## 📁 Estructura del proyecto
+## 🚀 Despliegue
 
+La aplicación se despliega automáticamente en Firebase Hosting mediante GitHub Actions cuando se hace push a la rama `main`.
 
+## 📝 Notas
+
+- Las credenciales de Firebase se gestionan mediante variables de entorno
+- En desarrollo local, usa el archivo `.env.local` (no se sube al repositorio)
+- En producción, se usan los secrets configurados en GitHub Actions
 
 ---
 
