@@ -8,15 +8,14 @@ import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 // Tu configuración de Firebase desde variables de entorno
-// Si las variables de entorno no están disponibles, usa valores por defecto
-// En producción (GitHub Actions), las variables se pasan desde secrets durante el build
+// NO incluye valores por defecto por seguridad
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCLrEceXProG4jQaZOnC6QlkpM_x7C-LOk",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "metas-2cc55.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "metas-2cc55",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "metas-2cc55.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "72829379006",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:72829379006:web:382fdf92a0aaa42b99d9ef"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Validar que Firebase esté configurado
@@ -38,17 +37,16 @@ try {
     // Inicializar Auth
     auth = getAuth(app);
   } else {
-    console.warn('⚠️ Firebase no está configurado. Por favor, configura tus credenciales en src/firebase/config.js');
-    // Crear objetos mock para evitar errores
-    db = null;
-    app = null;
-    auth = null;
+    const errorMsg = '⚠️ ERROR: Firebase no está configurado. ' +
+      'En desarrollo local, crea un archivo .env.local con las variables VITE_FIREBASE_*. ' +
+      'En producción, asegúrate de que los secrets estén configurados en GitHub Actions.';
+    console.error(errorMsg);
+    throw new Error(errorMsg);
   }
 } catch (error) {
   console.error('Error inicializando Firebase:', error);
-  db = null;
-  app = null;
-  auth = null;
+  // No crear objetos null, lanzar el error para que sea visible
+  throw error;
 }
 
 export { db, auth };
