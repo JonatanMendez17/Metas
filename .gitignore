@@ -13,7 +13,7 @@ dist-ssr
 *.local
 
 # Firebase config (contiene credenciales)
-src/firebase/config.js
+# src/firebase/config.js  # Comentado temporalmente para permitir build en GitHub Actions
 
 # Editor directories and files
 .vscode/*
