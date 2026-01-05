@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 # Firebase config (contiene credenciales)
 # src/firebase/config.js  # Comentado temporalmente para permitir build en GitHub Actions
 

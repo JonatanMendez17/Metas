@@ -1,22 +1,27 @@
 // Firebase Configuration
+// Usa variables de entorno para mayor seguridad
+// En desarrollo local, crea un archivo .env.local con tus credenciales
+// En producción (GitHub Actions), las variables se pasan desde secrets
 
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
-// Tu configuración de Firebase
+// Tu configuración de Firebase desde variables de entorno
 const firebaseConfig = {
-  apiKey: "AIzaSyCLrEceXProG4jQaZOnC6QlkpM_x7C-LOk",
-  authDomain: "metas-2cc55.firebaseapp.com",
-  projectId: "metas-2cc55",
-  storageBucket: "metas-2cc55.firebasestorage.app",
-  messagingSenderId: "72829379006",
-  appId: "1:72829379006:web:382fdf92a0aaa42b99d9ef"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || ""
 };
 
 // Validar que Firebase esté configurado
-const isFirebaseConfigured = firebaseConfig.apiKey !== "TU_API_KEY" && 
-                              firebaseConfig.projectId !== "TU_PROJECT_ID";
+const isFirebaseConfigured = firebaseConfig.apiKey && 
+                              firebaseConfig.apiKey !== "" &&
+                              firebaseConfig.projectId && 
+                              firebaseConfig.projectId !== "";
 
 let app;
 let db;
