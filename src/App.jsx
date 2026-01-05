@@ -177,6 +177,10 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [showAllCompletedGoals, setShowAllCompletedGoals] = useState(false);
   
+  // Navegación
+  const [currentView, setCurrentView] = useState('inicio');
+  const [organizerView, setOrganizerView] = useState('quarters'); // 'quarters' | 'months'
+  
   // Objetivos anuales
   const [yearlyObjectives, setYearlyObjectives] = useState([]);
   const [isLoadingObjectives, setIsLoadingObjectives] = useState(true);
@@ -437,6 +441,79 @@ export default function App() {
 
   const displayedCompletedGoals = showAllCompletedGoals ? allCompletedGoals : completedGoals;
 
+  // Funciones helper para el organizador
+  function getUnplannedGoals() {
+    return goals.filter(g => g.status === "unplanned" || g.isUnplanned === true);
+  }
+
+  function getGoalsByQuarter(year, quarter) {
+    return goals.filter(g => {
+      if (g.status === "done") return false;
+      if (g.status === "unplanned" || g.isUnplanned) return false;
+      return g.year === year && g.quarter === quarter;
+    });
+  }
+
+  function getGoalsByMonth(year, month) {
+    return goals.filter(g => {
+      if (g.status === "done") return false;
+      if (g.status === "unplanned" || g.isUnplanned) return false;
+      return g.year === year && g.activeMonths && g.activeMonths.includes(month);
+    });
+  }
+
+  // Función para manejar el drop de metas
+  async function handleDropGoal(goalId, targetQuarter, targetMonth) {
+    try {
+      const goal = goals.find(g => g.id === goalId);
+      if (!goal) return;
+
+      // Si la meta ya está en el mismo lugar, no hacer nada
+      if (targetMonth !== null && targetMonth !== undefined) {
+        if (goal.year === selectedYear && 
+            goal.startMonth === targetMonth && 
+            goal.quarter === getQuarter(targetMonth) &&
+            goal.activeMonths && 
+            goal.activeMonths.includes(targetMonth) &&
+            !goal.isUnplanned) {
+          return; // Ya está en el lugar correcto
+        }
+      } else if (targetQuarter !== null && targetQuarter !== undefined) {
+        const firstMonth = (targetQuarter - 1) * 3;
+        if (goal.year === selectedYear && 
+            goal.startMonth === firstMonth && 
+            goal.quarter === targetQuarter &&
+            !goal.isUnplanned) {
+          return; // Ya está en el lugar correcto
+        }
+      }
+
+      let updateData = {
+        status: goal.status === "done" ? goal.status : "active", // Preservar estado "done"
+        isUnplanned: false,
+        year: selectedYear
+      };
+
+      if (targetMonth !== null && targetMonth !== undefined) {
+        // Si se especifica un mes, usar ese mes
+        updateData.startMonth = targetMonth;
+        updateData.quarter = getQuarter(targetMonth);
+        updateData.activeMonths = [targetMonth];
+      } else if (targetQuarter !== null && targetQuarter !== undefined) {
+        // Si solo se especifica un trimestre, usar el primer mes del trimestre
+        const firstMonth = (targetQuarter - 1) * 3;
+        updateData.startMonth = firstMonth;
+        updateData.quarter = targetQuarter;
+        updateData.activeMonths = [firstMonth];
+      }
+
+      await updateGoalInFirebase(goalId, updateData);
+    } catch (error) {
+      console.error('Error actualizando meta:', error);
+      alert('Error al actualizar la meta. Por favor, intenta de nuevo.');
+    }
+  }
+
   // Mostrar pantalla de login si no hay usuario
   if (loadingAuth) {
     return (
@@ -465,9 +542,82 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+      {/* Botón de salir en la esquina superior derecha */}
+      <button
+        onClick={handleLogout}
+        className="fixed top-4 right-4 z-50 text-sm text-slate-400 hover:text-slate-200 px-3 py-2 rounded-lg hover:bg-slate-800/50 transition flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-800/50 shadow-lg"
+        title="Cerrar sesión"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+        Salir
+      </button>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        {/* Layout con dos columnas */}
-        <div className="flex flex-col lg:flex-row gap-8 items-start">
+        {/* Tabs de navegación */}
+        <div className="mb-6 border-b border-slate-800/50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setCurrentView('inicio')}
+                className={`px-4 py-2 text-sm font-medium transition ${
+                  currentView === 'inicio'
+                    ? 'text-slate-100 border-b-2 border-blue-500'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Inicio
+              </button>
+              <button
+                onClick={() => setCurrentView('organizador')}
+                className={`px-4 py-2 text-sm font-medium transition ${
+                  currentView === 'organizador'
+                    ? 'text-slate-100 border-b-2 border-blue-500'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Organizador
+              </button>
+            </div>
+            {/* Selector de año */}
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedYear}
+                onChange={e => {
+                  setSelectedYear(Number(e.target.value));
+                  if (currentView === 'inicio') {
+                    setSelectedMonth(0); // Resetear al primer mes al cambiar de año
+                  }
+                }}
+                className="text-sm font-semibold text-slate-300 bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 cursor-pointer hover:bg-slate-800/50 transition"
+              >
+                {Array.from({ length: 11 }, (_, i) => currentYear - 5 + i).map(y => (
+                  <option key={y} value={y} className="bg-slate-900">
+                    {y === currentYear ? `AÑO ${y} (Actual)` : `AÑO ${y}`}
+                  </option>
+                ))}
+              </select>
+              {selectedYear !== currentYear && (
+                <button
+                  onClick={() => {
+                    setSelectedYear(currentYear);
+                    if (currentView === 'inicio') {
+                      setSelectedMonth(currentMonth);
+                    }
+                  }}
+                  className="text-xs px-2 py-1 rounded bg-slate-800/50 hover:bg-slate-700/50 text-slate-400 hover:text-slate-200 transition"
+                  title="Volver al año actual"
+                >
+                  Hoy
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {currentView === 'inicio' ? (
+          /* Layout con dos columnas - Vista Inicio */
+          <div className="flex flex-col lg:flex-row gap-8 items-start">
           {/* Columna izquierda - Calendario */}
           <div className="flex-shrink-0 w-full lg:w-64">
             {/* Header con logo */}
@@ -485,44 +635,6 @@ export default function App() {
                   <h1 className="text-2xl font-semibold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
                     Metas
                   </h1>
-                  <button
-                    onClick={handleLogout}
-                    className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg hover:bg-slate-800/50 transition flex items-center gap-1.5"
-                    title="Cerrar sesión"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    Salir
-                  </button>
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <select
-                    value={selectedYear}
-                    onChange={e => {
-                      setSelectedYear(Number(e.target.value));
-                      setSelectedMonth(0); // Resetear al primer mes al cambiar de año
-                    }}
-                    className="text-xs font-semibold text-slate-300 bg-slate-900/50 border border-slate-700/50 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 cursor-pointer hover:bg-slate-800/50 transition"
-                  >
-                    {Array.from({ length: 11 }, (_, i) => currentYear - 5 + i).map(y => (
-                      <option key={y} value={y} className="bg-slate-900">
-                        {y === currentYear ? `AÑO ${y} (Actual)` : `AÑO ${y}`}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedYear !== currentYear && (
-                    <button
-                      onClick={() => {
-                        setSelectedYear(currentYear);
-                        setSelectedMonth(currentMonth);
-                      }}
-                      className="text-[10px] px-2 py-0.5 rounded bg-slate-800/50 hover:bg-slate-700/50 text-slate-400 hover:text-slate-200 transition"
-                      title="Volver al año actual"
-                    >
-                      Hoy
-                    </button>
-                  )}
                 </div>
                 {user?.displayName && (
                   <p className="text-xs text-slate-500 mt-1">
@@ -866,6 +978,23 @@ export default function App() {
         </div>
           </div>
         </div>
+        ) : (
+          /* Vista Organizador */
+          <OrganizerView
+            selectedYear={selectedYear}
+            goals={goals}
+            unplannedGoals={getUnplannedGoals()}
+            getGoalsByQuarter={getGoalsByQuarter}
+            getGoalsByMonth={getGoalsByMonth}
+            organizerView={organizerView}
+            setOrganizerView={setOrganizerView}
+            onDropGoal={handleDropGoal}
+            onStartEdit={startEdit}
+            onDelete={deleteGoal}
+            AREAS={AREAS}
+            QUARTER_COLORS={QUARTER_COLORS}
+          />
+        )}
       </main>
 
       {/* Modal para agregar meta */}
@@ -1367,6 +1496,356 @@ function YearlyObjectiveCard({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         </button>
+      </div>
+    </div>
+  );
+}
+
+function OrganizerView({
+  selectedYear,
+  goals,
+  unplannedGoals,
+  getGoalsByQuarter,
+  getGoalsByMonth,
+  organizerView,
+  setOrganizerView,
+  onDropGoal,
+  onStartEdit,
+  onDelete,
+  AREAS,
+  QUARTER_COLORS
+}) {
+  const [draggedGoalId, setDraggedGoalId] = useState(null);
+  const [dragOverTarget, setDragOverTarget] = useState(null);
+
+  function handleDragStart(e, goalId) {
+    setDraggedGoalId(goalId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', goalId);
+  }
+
+  function handleDragOver(e, targetType, targetValue) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverTarget(`${targetType}-${targetValue}`);
+  }
+
+  function handleDragLeave() {
+    setDragOverTarget(null);
+  }
+
+  function handleDrop(e, targetType, targetValue) {
+    e.preventDefault();
+    const goalId = e.dataTransfer.getData('text/plain');
+    
+    if (targetType === 'quarter') {
+      onDropGoal(goalId, targetValue, null);
+    } else if (targetType === 'month') {
+      onDropGoal(goalId, null, targetValue);
+    }
+    
+    setDraggedGoalId(null);
+    setDragOverTarget(null);
+  }
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-6">
+      {/* Panel izquierdo - Metas sin planificar */}
+      <div className="flex-shrink-0 w-full lg:w-64">
+        <div className="sticky top-6">
+          <h2 className="text-lg font-semibold text-slate-200 mb-4">Metas sin planificar</h2>
+          <div className="space-y-2 max-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar">
+            {unplannedGoals.length === 0 ? (
+              <p className="text-sm text-slate-500 italic text-center py-4">
+                No hay metas sin planificar
+              </p>
+            ) : (
+              unplannedGoals.map(goal => (
+                <UnplannedGoalCard
+                  key={goal.id}
+                  goal={goal}
+                  onDragStart={(e) => handleDragStart(e, goal.id)}
+                  isDragging={draggedGoalId === goal.id}
+                  AREAS={AREAS}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Cuerpo principal - Cuadrantes */}
+      <div className="flex-1 min-w-0">
+        {/* Toggle entre vista Q y Meses */}
+        <div className="mb-6 flex gap-2">
+          <button
+            onClick={() => setOrganizerView('quarters')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+              organizerView === 'quarters'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white'
+                : 'bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            Por Trimestres
+          </button>
+          <button
+            onClick={() => setOrganizerView('months')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+              organizerView === 'months'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white'
+                : 'bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            Por Meses
+          </button>
+        </div>
+
+        {organizerView === 'quarters' ? (
+          /* Vista por Trimestres */
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map(quarter => {
+              const quarterGoals = getGoalsByQuarter(selectedYear, quarter);
+              const quarterColor = QUARTER_COLORS[quarter];
+              const isDragOver = dragOverTarget === `quarter-${quarter}`;
+              
+              return (
+                <QuarterQuadrant
+                  key={quarter}
+                  quarter={quarter}
+                  goals={quarterGoals}
+                  quarterColor={quarterColor}
+                  isDragOver={isDragOver}
+                  onDragOver={(e) => handleDragOver(e, 'quarter', quarter)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, 'quarter', quarter)}
+                  onDragStart={(e, goalId) => handleDragStart(e, goalId)}
+                  draggedGoalId={draggedGoalId}
+                  onStartEdit={onStartEdit}
+                  onDelete={onDelete}
+                  AREAS={AREAS}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          /* Vista por Meses */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 12 }).map((_, month) => {
+              const monthGoals = getGoalsByMonth(selectedYear, month);
+              const quarter = Math.floor(month / 3) + 1;
+              const quarterColor = QUARTER_COLORS[quarter];
+              const isDragOver = dragOverTarget === `month-${month}`;
+              
+              return (
+                <MonthQuadrant
+                  key={month}
+                  month={month}
+                  year={selectedYear}
+                  goals={monthGoals}
+                  quarterColor={quarterColor}
+                  isDragOver={isDragOver}
+                  onDragOver={(e) => handleDragOver(e, 'month', month)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, 'month', month)}
+                  onDragStart={(e, goalId) => handleDragStart(e, goalId)}
+                  draggedGoalId={draggedGoalId}
+                  onStartEdit={onStartEdit}
+                  onDelete={onDelete}
+                  AREAS={AREAS}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UnplannedGoalCard({ goal, onDragStart, isDragging, AREAS }) {
+  return (
+    <div
+      draggable={true}
+      onDragStart={onDragStart}
+      className={`p-3 rounded-lg bg-slate-900/50 border border-slate-800/50 cursor-move hover:border-slate-700/50 transition ${
+        isDragging ? 'opacity-50' : ''
+      }`}
+    >
+      <div className="flex items-start gap-2">
+        <svg className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+        </svg>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-200 truncate">{goal.title}</p>
+          <p className="text-xs text-slate-500 mt-1">{AREAS[goal.area]}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuarterQuadrant({
+  quarter,
+  goals,
+  quarterColor,
+  isDragOver,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragStart,
+  draggedGoalId,
+  onStartEdit,
+  onDelete,
+  AREAS
+}) {
+  return (
+    <div
+      className={`rounded-xl border-2 p-4 min-h-[300px] transition ${quarterColor.border} ${
+        isDragOver
+          ? `${quarterColor.bg} border-opacity-100`
+          : 'bg-slate-900/30'
+      }`}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <h3 className={`text-lg font-bold ${quarterColor.bg} px-3 py-1 rounded-lg border ${quarterColor.border}`}>
+          {quarterColor.label}
+        </h3>
+        <span className="text-xs text-slate-400">{goals.length} {goals.length === 1 ? 'meta' : 'metas'}</span>
+      </div>
+      <div className="space-y-2">
+        {goals.length === 0 ? (
+          <p className="text-sm text-slate-500 italic text-center py-4">
+            Arrastra metas aquí
+          </p>
+        ) : (
+          goals.map(goal => (
+            <OrganizerGoalCard
+              key={goal.id}
+              goal={goal}
+              onDragStart={(e) => onDragStart(e, goal.id)}
+              isDragging={draggedGoalId === goal.id}
+              onStartEdit={() => onStartEdit(goal)}
+              onDelete={() => onDelete(goal.id)}
+              AREAS={AREAS}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MonthQuadrant({
+  month,
+  year,
+  goals,
+  quarterColor,
+  isDragOver,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragStart,
+  draggedGoalId,
+  onStartEdit,
+  onDelete,
+  AREAS
+}) {
+  const monthName = new Date(year, month).toLocaleString("es-ES", { month: "long" });
+  
+  return (
+    <div
+      className={`rounded-xl border-2 p-4 min-h-[250px] transition ${quarterColor.border} ${
+        isDragOver
+          ? `${quarterColor.bg} border-opacity-100`
+          : 'bg-slate-900/30'
+      }`}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-semibold text-slate-200 capitalize">{monthName}</h3>
+        <span className="text-xs text-slate-400">{goals.length} {goals.length === 1 ? 'meta' : 'metas'}</span>
+      </div>
+      <div className="space-y-2">
+        {goals.length === 0 ? (
+          <p className="text-sm text-slate-500 italic text-center py-4">
+            Arrastra metas aquí
+          </p>
+        ) : (
+          goals.map(goal => (
+            <OrganizerGoalCard
+              key={goal.id}
+              goal={goal}
+              onDragStart={(e) => onDragStart(e, goal.id)}
+              isDragging={draggedGoalId === goal.id}
+              onStartEdit={() => onStartEdit(goal)}
+              onDelete={() => onDelete(goal.id)}
+              AREAS={AREAS}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OrganizerGoalCard({ goal, onDragStart, isDragging, onStartEdit, onDelete, AREAS }) {
+  return (
+    <div
+      draggable={true}
+      onDragStart={onDragStart}
+      className={`p-2.5 rounded-lg bg-slate-800/50 border border-slate-700/50 hover:bg-slate-800 hover:border-slate-600 transition group cursor-move ${
+        isDragging ? 'opacity-50' : ''
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <svg className="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+            <p className="text-sm font-medium text-slate-200 truncate">{goal.title}</p>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-slate-500">{AREAS[goal.area]}</span>
+            {goal.quarter && (
+              <>
+                <span className="text-xs text-slate-600">•</span>
+                <span className="text-xs text-slate-500">Q{goal.quarter}</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartEdit();
+            }}
+            className="p-1 rounded bg-slate-700/50 hover:bg-blue-600/20 text-slate-400 hover:text-blue-400 transition"
+            title="Editar"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="p-1 rounded bg-slate-700/50 hover:bg-red-600/20 text-slate-400 hover:text-red-400 transition"
+            title="Eliminar"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );
